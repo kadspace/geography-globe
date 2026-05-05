@@ -1,5 +1,16 @@
 # Geography Globe
 
-Hello-world deploy test for the future geography globe app.
+React hello-world deploy test for the future geography globe app.
 
-Open `index.html` directly or serve this folder with any static host.
+## Local
+
+```bash
+npm install
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
