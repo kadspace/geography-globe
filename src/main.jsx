@@ -88,13 +88,15 @@ function shuffle(items) {
 
 function App() {
   const globeRef = useRef(null);
+  const [isCompact, setIsCompact] = useState(false);
+  const mexicoTapCount = useRef(0);
   const [selected, setSelected] = useState(null);
   const [hovered, setHovered] = useState(null);
   const [query, setQuery] = useState("");
   const [region, setRegion] = useState("All");
   const [mode, setMode] = useState("learn");
   const [target, setTarget] = useState(null);
-  const [message, setMessage] = useState("Pick a country or start a quick quiz.");
+  const [message, setMessage] = useState("Choose a country.");
   const [progress, setProgress] = useState(loadProgress);
 
   const countries = useMemo(() => {
@@ -156,18 +158,27 @@ function App() {
   }, [progress]);
 
   useEffect(() => {
-    if (!globeRef.current) return;
-    globeRef.current.controls().autoRotate = true;
-    globeRef.current.controls().autoRotateSpeed = 0.35;
-    globeRef.current.pointOfView({ lat: 18, lng: 12, altitude: 2.45 }, 0);
+    const media = window.matchMedia("(max-width: 760px)");
+    const syncMedia = () => setIsCompact(media.matches);
+    syncMedia();
+    media.addEventListener("change", syncMedia);
+    return () => media.removeEventListener("change", syncMedia);
   }, []);
+
+  useEffect(() => {
+    if (!globeRef.current) return;
+    globeRef.current.renderer()?.setPixelRatio?.(isCompact ? 1 : Math.min(window.devicePixelRatio || 1, 1.35));
+    globeRef.current.controls().autoRotate = !isCompact;
+    globeRef.current.controls().autoRotateSpeed = 0.35;
+    globeRef.current.pointOfView({ lat: 18, lng: 12, altitude: isCompact ? 2.75 : 2.35 }, 0);
+  }, [isCompact]);
 
   const focusCountry = (country, nextMode = mode) => {
     setSelected(country);
     const { lat, lng } = country.properties.center;
     globeRef.current?.pointOfView({ lat, lng, altitude: 1.55 }, 900);
     if (nextMode === "learn") {
-      setMessage(`${country.properties.meta.name}: ${country.properties.meta.hook}`);
+      setMessage(country.properties.meta.hook);
       setProgress((current) => ({
         ...current,
         [country.properties.name]: {
@@ -185,7 +196,7 @@ function App() {
     setMode("quiz");
     setTarget(nextTarget);
     setSelected(null);
-    setMessage(`Find ${nextTarget.properties.meta.name} on the globe.`);
+    setMessage(`Find ${nextTarget.properties.meta.name}.`);
     const { lat, lng } = nextTarget.properties.center;
     globeRef.current?.pointOfView({ lat: lat > 0 ? 24 : -18, lng: lng + 45, altitude: 2.1 }, 800);
   };
@@ -209,15 +220,29 @@ function App() {
     });
 
     if (isCorrect) {
-      setMessage(`Correct. That is ${target.properties.meta.name}.`);
+      setMessage("Correct.");
       window.setTimeout(startQuiz, 850);
     } else {
-      setMessage(`Close, but that was ${country.properties.meta.name}. Try ${target.properties.meta.name}.`);
+      setMessage(`That was ${country.properties.meta.name}.`);
     }
   };
 
   const handleCountryClick = (country) => {
     if (!country.properties.meta) return;
+    if (country.properties.name === "Mexico") {
+      mexicoTapCount.current += 1;
+      if (mexicoTapCount.current === 5) {
+        setMode("learn");
+        setTarget(null);
+        setSelected(country);
+        setMessage("Hi Jolie 😃");
+        mexicoTapCount.current = 0;
+        return;
+      }
+    } else {
+      mexicoTapCount.current = 0;
+    }
+
     if (mode === "quiz") {
       markAnswer(country);
       return;
@@ -238,7 +263,7 @@ function App() {
         <div className="topbar">
           <div>
             <p className="eyebrow">Geography Globe</p>
-            <h1>Learn the countries that come up all the time.</h1>
+            <h1>Geography</h1>
           </div>
           <div className="mode-controls" aria-label="Mode controls">
             <button className={mode === "learn" ? "active" : ""} onClick={() => setMode("learn")}>
@@ -253,10 +278,11 @@ function App() {
         <div className="globe-wrap">
           <Globe
             ref={globeRef}
+            animateIn={false}
+            rendererConfig={{ antialias: !isCompact, alpha: true, powerPreference: "high-performance" }}
             backgroundColor="rgba(0,0,0,0)"
             globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
-            bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-            polygonsData={countries}
+            polygonsData={studyCountries}
             polygonAltitude={(country) =>
               country.properties.name === activeName ? 0.045 : 0.012
             }
@@ -277,14 +303,14 @@ function App() {
             onPolygonHover={setHovered}
             onPolygonClick={handleCountryClick}
             atmosphereColor="#bde7ee"
-            atmosphereAltitude={0.18}
+            atmosphereAltitude={isCompact ? 0.08 : 0.14}
           />
         </div>
       </section>
 
       <aside className="side-panel">
         <div className="status-card">
-          <p className="label">{mode === "quiz" ? "Quiz prompt" : "Current note"}</p>
+          <p className="label">{mode === "quiz" ? "Quiz" : "Note"}</p>
           <h2>{message}</h2>
           {selected?.properties.meta && (
             <dl>
